@@ -1,0 +1,94 @@
+---
+title: "G4015 Assignment 5"
+author: "Wen Fu"
+date: "November 30, 2015"
+output: html_document
+---
+###1. Run a multiple linear probability model (using GSS data). Tell me how you think your independent variables will affect your dependent variable. Interpret your results. Were your expectations correct? Why or why not?
+
+I expect that whether someone thinks the main satisfaction in life comes from work (_wktopsat_) depends on a few characteristics of the work: _workdiff_ (I get to do a number of different things on my job), _wkvsfam_ (How often do the demands of your job interfere with your family life), _wrkhome_ (How often do you work at home as part of your job), and _mustwork_ (Is it mandatory that you work extra hours on your main job). I expect the more different things someone does, the less the job interferes with family life, the more someone works from home, and the less mandatory it is to work extra hours, the more one feels life satisfaction comes from work.
+
+```{r}
+# install.packages("devtools")
+# library(devtools)
+# install_github("jgabry/QMSS_package")
+
+stopifnot(require(QMSS))
+dat <- read.csv("GSS2006.csv")
+sub <- dat[, c("wktopsat", "workdiff", "wkvsfam", "wrkhome", "mustwork")]
+sub <- na.omit(sub)
+sub$wksat <- ifelse(sub$wktopsat == 1 | sub$wktopsat == 2, 1, 0)
+table(sub$wksat)
+lm1 <- lm(wksat ~ workdiff + wkvsfam + wrkhome + mustwork, data = sub)
+summary(lm1)
+```
+
+The results show that for every category increase in _workdiff_, someone is 8.6 percentage points less likely to agree that work is life's main satisfaction on average, net of other variables included. The coefficient is significant at the 0.001 level. It is possible that the more diverse one's job is, the less structured it is, and thus the more stressed one feels, which decreases satisfaction.
+
+For every frequency increase in _wrkhome_, someone is 3.3 percentage points more likely to agree that work is life's main satisfaction on average, net of other variables included. The coefficient is significant at the 0.001 level. It is possible that the more frequently one works from home, the more freedom one feels, which increases satisfaction.
+
+The other variables, _wkvsfam_ and _mustwork_, are shown to not be significantly related to _wktopsat_. It is possible that interference with family and working extra hours do not affect satisfaction per se about the work.
+
+###2. Run a multiple (binary) logistic model. (It can be the same as the above LPM or, even better, a new model.) Tell me how you think your independent variables will affect your dependent variable. Interpret your results in the logit scale. Were your expectations correct? Why or why not?
+
+I use the same model as above.
+
+```{r}
+logit1 <- glm(wksat ~ workdiff + wkvsfam + wrkhome + mustwork, data = sub, family = binomial)
+summary(logit1)
+```
+
+The results show that for every category increase in _workdiff_, someone decreases the logit by 0.47 of agreeing that life's satisfaction comes from work on average, net of other variables included.
+
+For every frequency increase in _wrkhome_, someone increases the logit by 0.16 of agreeing that life's satisfaction comes from work on average, net of other variables included.
+
+The other variables, _wkvsfam_ and _mustwork_, are shown to not be significantly related to _wktopsat_.
+
+###3. Get odds ratios from your logit model in Question 2 and interpret some of them.
+
+```{r}
+exp(coef(logit1))
+```
+
+The results show that a category increase in _workdiff_ increases someone's odds ratio of agreeing that life's satisfaction comes from work by 0.62 on average, net of other variables included. 
+
+A frequency increase in _mustwork_ increases someone's odds ratio of agreeing that life's satisfaction comes from work by 1.02 on average, net of other variables included.
+
+###4. Get predicted probabilities from your logit model in Question 2 for some constellations of X values and interpret the results.
+
+```{r}
+predict(logit1, type = "response", newdata = data.frame(workdiff = c(2, 3), wkvsfam = c(4, 2), wrkhome = c(3, 1), mustwork = c(2, 1))) 
+```
+
+The results show that for someone who agrees he gets to do a number of different things on his job, whose job never interferes with his family life, works from home about once a month, and whose job never demands working extra hours, the predicted probability of agreeing that life's main satisfaction comes from work is 0.272, which is 27.2% probability.
+
+For someone who disagrees he gets to do a number of different things on his job, whose job sometimes interferes with his family life, never works from home, and whose job demands working extra hours, the predicted probability of agreeing that life's main satisfaction comes from work is 0.143, which is 14.3 probability. 
+
+```{r}
+# the below will get predicted probability for any combination of variables and everything else set to means
+
+pred.dat <- with(sub, expand.grid(
+        workdiff = sort(unique(workdiff)),
+        wkvsfam = mean(wkvsfam),
+        wrkhome = sort(unique(wrkhome)),
+        mustwork = mean(mustwork)))
+
+predProb(logit1, predData = pred.dat, ci = F)
+```
+
+```{r}
+# the below will visualize the predicted probabilities specified
+
+sub$workdiff_fac <- as.factor(sub$workdiff)
+logit2 <- glm(wksat ~ workdiff_fac + wkvsfam + wrkhome + mustwork, data = sub, family = binomial)
+summary(logit2)
+
+library(visreg)
+visreg(logit2, "wrkhome", by = "workdiff_fac",
+       partial = F, overlay = T,
+       xlab = "How often work from home",
+       ylab = "Predicted Probability",
+       scale = "response",
+       type = "conditional",
+       alpha = .95)
+```
