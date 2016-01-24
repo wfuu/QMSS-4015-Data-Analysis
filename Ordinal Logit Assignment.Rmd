@@ -1,0 +1,51 @@
+---
+title: "G4015 Optional Lab"
+author: "Wen Fu"
+date: "December 7, 2015"
+output: html_document
+---
+###1. Run a multiple ordinal logistic regression (using GSS data). What you expect to find, interpret your results, what you actually find?
+
+I want to find out what predicts whether people think America spends too much, too little, or about the right amount on improving and protecting the environment (`natenvir`). I expect the independent variables to be years of education (`educ`), political ideology (`polviews`), and affluence level measured by income on a log scale (`realinc`). The more years of education, more liberal the ideological affiliation, and more affluent, the more people may think America should spend on improving the environment.
+
+```{r}
+dat <- read.csv("GSS2006.csv")
+library(VGAM)
+vars <- c("educ", "polviews", "realinc", "natenvir")
+sub <- dat[, vars]
+sub$edu <- cut(sub$educ, breaks = c(-1, 6, 9, 12, 16, 20), labels = c("primary", "middle", "secondary", "college", "higher"))  # recode the variable into categories
+table(sub$educ, sub$edu)  # check the recoding
+sub$envir <- factor(sub$natenvir, levels = 3:1, labels = c("too much", "about right", "too little"), ordered = TRUE)  # recode the variable into three categories
+table(sub$natenvir, sub$envir)  # check the recoding
+```
+
+Run an ordinal logistic regression as follows, adding odds ratios to the summary output.
+
+```{r}
+VGLM <- vglm(envir ~ edu + polviews + I(log(realinc)), data = sub, family = propodds)
+summary(VGLM)
+coefs <- data.frame(coef(summary(VGLM)))
+coefs$odds_ratio <- exp(coefs[, "Estimate"])  # compute odds ratios
+coefs
+```
+
+On average, people with more than 4 years of college education compared with people with fewer than 6 years of education (the reference group) have an increase in their logit by 0.84 that they will be in a higher category of support for spending on improving the environment, as opposed to a lower category, net of other factors (their odds increase by 131% that they will be in a higher category as opposed to a lower category). This effect is statistically significant at the _p_ = 0.05 level.
+
+On average, for each category increase in conservatism people have, they decrease their logit by 0.48 that they will be in a higher category of support for spending on improving the environment, as opposed to a lower category, net of other factors (their odds decrease by 38% that they will be in a higher category as opposed to a lower category). This effect is statistically significant at the _p_ = 0.001 level.
+
+The above results confirm my expectations in part, that more higher education and less conservatism lead to support for more spending on improving the environment. However, the differences between any other educational categories do not have a statistically significant effect on their support for more environmental spending. Perhaps it takes more education beyond college for people to truly realize the deficit in environmental spending.
+
+Also, the level of affluence measured by log of income does not significantly affect support for environmental spending either. Perhaps materialism and environmental consideration are not related.
+
+###2. Test the proportional odds assumption of the ordinal logistic regression. What does the test find, does it satisfy the assumption or not?
+
+The above ordinal logistic regression model assumes parallel slopes (same coefficient) for the two binary logistic regression equations. If we relax this assumption and check whether these coefficients are significantly different from each other, then we can test this assumption.
+
+```{r}
+VGLM2 <- vglm(envir ~ edu + polviews + I(log(realinc)), data = sub, family = cumulative(reverse = TRUE))  # instead of family = propodds
+summary(VGLM2)
+library(QMSS)
+propOddsTest(VGLM, VGLM2)
+```
+
+The test finds that the proportional odds assumption has been violated in the first model. This means that the slopes on `envir` for each threshold jump are significantly different from each other. 
